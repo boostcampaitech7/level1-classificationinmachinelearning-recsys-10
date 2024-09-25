@@ -4,7 +4,7 @@ import pandas as pd
 
 class NaiveModel(Model):
 
-    def fit(self, X: pd.DataFrame, y: pd.Series):
+    def fit(self, X: pd.DataFrame, y: pd.Series, y_price: pd.Series):
         pass
 
     def predict(self, X: pd.DataFrame) -> pd.Series:
