@@ -4,7 +4,7 @@ import pandas as pd
 class Model(metaclass=ABCMeta):
 
     @abstractmethod
-    def fit(X: pd.DataFrame, y: pd.Series) -> None:
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
         """가격 변동 예측 모델을 학습시킵니다.
 
         Parameters
@@ -22,7 +22,7 @@ class Model(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def predict(X: pd.DataFrame) -> pd.Series:
+    def predict(self, X: pd.DataFrame) -> pd.Series:
         """이후 가격 변동을 예측합니다.
 
         메서드를 호출하기 전, fit 메서드를 먼저 호출해야합니다.
