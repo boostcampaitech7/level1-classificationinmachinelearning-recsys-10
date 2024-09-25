@@ -4,7 +4,7 @@ import pandas as pd
 class Model(metaclass=ABCMeta):
 
     @abstractmethod
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
+    def fit(self, X: pd.DataFrame, y: pd.Series, y_price: pd.Series) -> None:
         """가격 변동 예측 모델을 학습시킵니다.
 
         Parameters
@@ -19,6 +19,10 @@ class Model(metaclass=ABCMeta):
             1: -0.5% ~ 0% 
             2: 0% ~ 0.5%
             3: 0.5% 이상
+        
+        y_price: pd.Series
+            가격 정보가 담겨져 있는 학습데이터입니다.
+            예측 시에는 제공되지 않는 정보입니다.
         """
 
     @abstractmethod
