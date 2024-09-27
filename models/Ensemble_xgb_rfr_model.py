@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split
 from model import Model
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from xgboost import XGBClassifier
 
-class Ensemble_XGB_RFR_Model(Model):
+class EnsembleXgbRfrModel(Model):
     """
     XGBoost와 RandomForestRegressor를 결합한 앙상블 모델.
     
@@ -28,6 +28,24 @@ class Ensemble_XGB_RFR_Model(Model):
         학습된 모델을 기반으로 타겟 값을 예측합니다.
     """
 
+    def preprocess_X(self, X):
+        """
+        입력 데이터 X에 대해 전처리를 수행합니다. NaN, 무한대, 너무 큰 값을 처리합니다.
+        Args:
+            X (pd.DataFrame): 입력 특성 데이터.
+        Returns:
+            X (pd.DataFrame): 전처리된 데이터.
+        """
+        X = X.replace([np.inf, -np.inf], np.nan)
+        X = X.fillna(X.mean())
+
+        X = X.astype(np.float32)
+
+        max_float32 = np.finfo(np.float32).max
+        X[X > max_float32] = max_float32
+        
+        return X
+
     def __init__(self):
         """
         XGBoost, RandomForest을 메타 모델로 초기화합니다.
@@ -36,34 +54,17 @@ class Ensemble_XGB_RFR_Model(Model):
         self.xgb_model = XGBClassifier()
         self.rfr_model = RandomForestRegressor()
 
-    def fit(self, X_direction: pd.DataFrame, X_magnitude: pd.DataFrame, 
-            y_direction: pd.Series, y_magnitude: pd.Series, test_size: float = 0.2) -> None:
-        """
-        주어진 데이터셋에 앙상블 모델을 학습합니다.
+    def fit(self, X: pd.DataFrame, y: pd.Series, y_price: pd.Series) -> None:
+        X = self.preprocess_X(X)
 
-        기본 모델(XGBoost와 RandomForest)은 train_test_split 검증을 사용하여 학습되며, 그 예측값을 결합하여 사용됩니다.
+        y_magnitude = y_price.pct_change().fillna(0).copy() * 100
+        y_direction = y_magnitude.apply(lambda x: 1 if x > 0 else 0)
 
-        매개변수
-        ----------
-        데이터를 두 개로 나눕니다: 가격 변동 방향 예측 (XGBClassifier)와 가격 변동폭 예측 (RandomForestRegressor)
-        X_direction : pd.DataFrame
-        가격 변동 방향을 예측하는 특성 행렬.
-        X_magnitude : pd.DataFrame
-        가격 변동폭을 예측하는 특성 행렬.
-        y_direction : pd.Series
-        가격 변동 방향에 대한 타겟 값.
-        y_magnitude : pd.Series
-        가격 변동폭에 대한 타겟 값.
-
-        반환값
-        -------
-        None
-        """
         X_train_dir, X_val_dir, y_train_dir, y_val_dir = train_test_split(
-            X_direction, y_direction, test_size=test_size, random_state=42
+            X, y_direction, test_size=0.2, random_state=42
         )
         X_train_mag, X_val_mag, y_train_mag, y_val_mag = train_test_split(
-            X_magnitude, y_magnitude, test_size=test_size, random_state=42
+            X, y_magnitude, test_size=0.2, random_state=42
         )
 
         self.xgb_model.fit(X_train_dir, y_train_dir)
@@ -72,17 +73,19 @@ class Ensemble_XGB_RFR_Model(Model):
         self.X_val_dir, self.X_val_mag = X_val_dir, X_val_mag
         self.y_val_dir, self.y_val_mag = y_val_dir, y_val_mag
 
-    def predict(self) -> np.ndarray:
+    def predict(self, X: pd.DataFrame) -> pd.Series:
         """
         학습된 모델을 사용하여 검증 세트에 대해 타겟 값을 예측합니다.
 
         반환값
         -------
-        np.ndarray
+        pd.Series
             예측된 타겟 값.
         """
-        pred_direction = self.xgb_model.predict(self.X_val_dir)
-        pred_magnitude = self.rfr_model.predict(self.X_val_mag)
+        X = self.preprocess_X(X)
+
+        pred_direction = self.xgb_model.predict(X)
+        pred_magnitude = self.rfr_model.predict(X)
 
         def price_movement_output(magnitude):
             """
@@ -137,8 +140,9 @@ class Ensemble_XGB_RFR_Model(Model):
             combined_price_prediction(direction, price_movement_output(magnitude))
             for direction, magnitude in zip(pred_direction, pred_magnitude)
         ])
+        y_predict = pd.Series(final_prediction)
 
-        return final_prediction
+        return y_predict
 
 
 
