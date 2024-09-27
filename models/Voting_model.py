@@ -9,7 +9,7 @@ from sklearn.feature_selection import RFE
 from abc import ABCMeta, abstractmethod
 from model import Model
 
-# CustomModel 클래스 정의 (y_price 없이)
+
 class CustomModel(Model):
     """
     LightGBM과 XGBoost를 사용한 투표 분류기와 RFE 기반 피처 선택을 포함하는 커스텀 모델입니다.
