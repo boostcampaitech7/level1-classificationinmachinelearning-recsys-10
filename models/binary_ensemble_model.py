@@ -31,7 +31,7 @@ class BinaryEnsembleModel(Model):
         self.selected_features = selected_features
         self.binary_models = {}  # 각 클래스에 대한 이진 분류 모델 저장용
 
-    def fit(self, X: pd.DataFrame, y: pd.Series, category_cols: list = None) -> None:
+    def fit(self, X: pd.DataFrame, y: pd.Series, y_price: pd.Series) -> None:
         """각 클래스별 이진 분류 모델을 학습합니다."""
         if self.selected_features == "all":
             selected_X = X
@@ -45,9 +45,7 @@ class BinaryEnsembleModel(Model):
             y_train_binary = (y == target_class).astype(int)
 
             # LightGBM 데이터셋 생성
-            train_data = lgb.Dataset(
-                selected_X, label=y_train_binary, categorical_feature=category_cols
-            )
+            train_data = lgb.Dataset(selected_X, label=y_train_binary)
 
             # 모델 학습
             model = lgb.train(
