@@ -5,36 +5,39 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
-class EnsembleXgbRfrModel(Model):
+class DirectionStrengthModel(Model):
     """
     XGBoost와 RandomForestRegressor를 결합한 앙상블 모델.
     
-    이 모델은 두 개의 레이어 앙상블 방식을 사용하여, 기본 모델(XGBoost와 RandomForestRegressor)의 예측을 결합하여 사용합니다.
+    두 모델은 각각 가격 변동 방향과 변동폭을 예측하고, 이를 결합하여 최종 예측 결과로써 사용합니다.
 
-    속성
+    Attributes
     ----------
-    model : LinearRegression
-        기본 모델의 예측을 학습하는 메타 모델.
     xgb_model : XGBClassifier
-        XGBoost 기본 모델.
+        가격 변동 방향을 예측하는 XGBoost 기본 모델.
     rfr_model : RandomForestRegressor
-        RandomForest 기본 모델.
+        가격 변동폭을 예측하는 RandomForest 기본 모델.
 
-    메서드
+    Methods
     -------
-    fit(X_direction, X_magnitude, y_direction, y_magnitude)
+    fit(self, X: pd.DataFrame, y: pd.Series, y_price: pd.Series)
         주어진 데이터를 사용하여 앙상블 모델을 학습합니다.
-    predict(X_direction, X_magnitude)
+    predict(self, X: pd.DataFrame)
         학습된 모델을 기반으로 타겟 값을 예측합니다.
     """
 
-    def preprocess_X(self, X):
-        """
-        입력 데이터 X에 대해 전처리를 수행합니다. NaN, 무한대, 너무 큰 값을 처리합니다.
-        Args:
-            X (pd.DataFrame): 입력 특성 데이터.
-        Returns:
-            X (pd.DataFrame): 전처리된 데이터.
+    def preprocess_X(self, X: pd.DataFrame) -> pd.DataFrame:
+        """입력 데이터 X에 대해 전처리를 수행합니다. NaN, 무한대, 너무 큰 값을 처리합니다.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            입력 특성 데이터입니다.
+
+        Returns
+        -------
+        pd.DataFrame
+            전처리된 데이터를 반환합니다.
         """
         X = X.replace([np.inf, -np.inf], np.nan)
         X = X.fillna(X.mean())
@@ -48,9 +51,8 @@ class EnsembleXgbRfrModel(Model):
 
     def __init__(self):
         """
-        XGBoost, RandomForest을 메타 모델로 초기화합니다.
+        XGBoost, RandomForest 모델을 초기화합니다.
         """
-        self.model = None
         self.xgb_model = XGBClassifier()
         self.rfr_model = RandomForestRegressor()
 
@@ -77,17 +79,22 @@ class EnsembleXgbRfrModel(Model):
         """
         학습된 모델을 사용하여 검증 세트에 대해 타겟 값을 예측합니다.
 
-        반환값
+        Parameters
+        ----------
+        X : pd.DataFrame
+            입력 데이터입니다.
+
+        Returns
         -------
         pd.Series
-            예측된 타겟 값.
+            예측된 타겟 값을 반환합니다.
         """
         X = self.preprocess_X(X)
 
         pred_direction = self.xgb_model.predict(X)
         pred_magnitude = self.rfr_model.predict(X)
 
-        def price_movement_output(magnitude):
+        def price_movement_output(magnitude: float) -> int:
             """
             가격 변동폭을 두 가지 범주로 분류합니다.
 
@@ -108,7 +115,7 @@ class EnsembleXgbRfrModel(Model):
             else:
                 return 0
             
-        def combined_price_prediction(direction, magnitude_category):
+        def combined_price_prediction(direction: int, magnitude_category: int) -> int:
             """
             가격 변동 방향과 변동폭을 결합하여 4개의 카테고리로 분류합니다.
 
