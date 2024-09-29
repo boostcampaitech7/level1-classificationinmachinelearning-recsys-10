@@ -52,10 +52,6 @@ class BinaryEnsembleModel(Model):
                 self.model_params,
                 train_set=train_data,
                 num_boost_round=600,
-                callbacks=[
-                    lgb.early_stopping(stopping_rounds=50),
-                    lgb.log_evaluation(100),
-                ],
             )
 
             # 학습된 모델을 클래스별로 저장
