@@ -54,7 +54,7 @@ class VotingModel(Model):
             return df
         
         # NaN 및 inf 값 처리
-        X = self._check_and_handle_invalid_values(X)
+        X = _check_and_handle_invalid_values(X)
 
         if self.selected_features == 'all':
             selected_X = X
