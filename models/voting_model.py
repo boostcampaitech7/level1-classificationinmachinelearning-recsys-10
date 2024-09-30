@@ -1,62 +1,72 @@
 import numpy as np
 import pandas as pd
-from collections import Counter
+import lightgbm as lgb
 from sklearn.ensemble import VotingClassifier
 from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import train_test_split
 from model import Model
 
 
 
 class VotingModel(Model):
-    """
-    LightGBM과 XGBoost를 사용한 투표 분류기 커스텀 모델입니다.
-    또한 0과 3, 1과 2 그룹에 대해 2단계 예측을 수행합니다.
+    """단순 분류 모델을 사용하여 주가 등락을 예측하는 모델입니다."""
 
-    속성
-    -----
-    voting_model : VotingClassifier
-        LightGBM과 XGBoost 모델을 결합한 투표 분류기입니다.
-    voting_model_12 : VotingClassifier
-        1과 2 그룹을 위한 투표 분류기입니다.
-    best_stage2_model_03 : LGBMClassifier
-        0과 3 그룹을 분류하는 모델입니다.
+    def __init__(self, model_params: dict = None, selected_features: list = None, ignore_strength: bool = False):
+        """분류 모델의 각종 설정을 초기화합니다.
 
-    메서드
-    ------
-    fit(X, y)
-        피처 선택과 투표 분류기 학습을 포함한 모델 학습을 수행합니다.
-    fit_group_03(X, y)
-        0과 3 그룹 분류를 위한 모델을 학습합니다.
-    fit_group_12(X, y)
-        1과 2 그룹 분류를 위한 모델을 학습합니다.
-    predict(X)
-        학습된 모델을 사용하여 입력 데이터에 대한 예측을 수행합니다.
-    """
-    def __init__(self):
-        """
-        VotingModel 클래스의 초기화 메서드입니다.
-        """
-        self.voting_model = None
-        self.voting_model_12 = None
-        self.best_stage2_model_03 = None
-
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
-        """
-        피처 선택과 투표 분류기 학습을 포함하여 커스텀 모델을 학습합니다.
-
-        매개변수
+        Parameters
         ----------
-        X : pd.DataFrame
-            학습에 사용될 입력 데이터입니다.
-        y : pd.Series
-            입력 데이터에 대한 타겟 값입니다.
+        model_params : dict, optional
+            lightgbm.train에 들어가는 파라미터들을 정의한 딕셔너리입니다.
+            전달하지 않은 경우 lightgbm의 default hyperparameter를 사용합니다.
+        selected_features : list, optional
+            사용할 feature들의 이름을 담은 리스트입니다.
+            전달하지 않은 경우 모든 feature를 사용합니다.
+        ignore_strength : bool, optional
+            True인 경우, 예측 label 중 0, 3은 1, 2로 변경합니다.
+            Default는 False입니다.
         """
-        class_counts = Counter(y)
-        total_samples = sum(class_counts.values())
-        class_weights = {cls: total_samples / count for cls, count in class_counts.items()}
+        if model_params is None:
+            model_params = {
+                'random_state': 42,
+            }
+        if selected_features is None:
+            selected_features = 'all'
 
+        self.model_params = model_params
+        self.selected_features = selected_features
+        self.ignore_strength = ignore_strength
+
+        # 모델 초기화
+        self.voting_model_stage1 = None
+        self.lgbm_model_stage2_03 = None
+        self.voting_model_stage2_12 = None
+
+    def fit(self, X: pd.DataFrame, y: pd.Series, y_price: pd.Series) -> None:
+        """모델 학습을 위한 함수"""
+
+        # NaN 및 inf 값을 처리하기 위한 함수
+        def _check_and_handle_invalid_values(df: pd.DataFrame) -> pd.DataFrame:
+            """NaN 및 inf 값을 처리"""
+            df = df.replace([np.inf, -np.inf], np.nan)  # inf 값을 NaN으로 대체
+            df = df.fillna(0)  # NaN 값을 0으로 대체 (필요에 따라 다른 값으로 대체 가능)
+            return df
+        
+        # NaN 및 inf 값 처리
+        X = self._check_and_handle_invalid_values(X)
+
+        if self.selected_features == 'all':
+            selected_X = X
+        else:
+            selected_X = X[self.selected_features]
+
+        if self.ignore_strength:
+            y = y.apply(lambda x: 1 if x <= 1 else 2)
+
+        
+
+        # Stage 1 모델 학습 (0,3 vs 1,2)
         lgbm_model = LGBMClassifier(
             learning_rate=0.1,
             num_leaves=50,
@@ -65,18 +75,17 @@ class VotingModel(Model):
             lambda_l2=0.1,
             min_child_samples=100,
             boost_from_average=False,
-            class_weight=class_weights,
             random_state=42
         )
 
         xgb_model = XGBClassifier(
-            learning_rate=0.1,  
+            learning_rate=0.1,
             n_estimators=100,
             max_depth=5,
             random_state=42
         )
 
-        self.voting_model = VotingClassifier(
+        self.voting_model_stage1 = VotingClassifier(
             estimators=[
                 ('lgbm', lgbm_model),
                 ('xgb', xgb_model)
@@ -84,44 +93,18 @@ class VotingModel(Model):
             voting='soft'
         )
 
-        # Voting Classifier 학습
-        self.voting_model.fit(X, y)
+        self.voting_model_stage1.fit(selected_X, y)
 
-        # 0과 3 그룹 분류 모델 학습
+        # Stage 2: 0 vs 3 모델 학습
         group_03 = X[y == 1]
-        y_train_03 = y.loc[group_03.index]
-        self.fit_group_03(group_03, y_train_03)
+        y_03 = y[y == 1].apply(lambda x: 0 if x == 0 else 3)
+        self.lgbm_model_stage2_03 = LGBMClassifier(random_state=42, boost_from_average=False)
+        self.lgbm_model_stage2_03.fit(group_03, y_03)
 
-        # 1과 2 그룹 분류 모델 학습
+        # Stage 2: 1 vs 2 모델 학습
         group_12 = X[y == 0]
-        y_train_12 = y.loc[group_12.index].apply(lambda x: 1 if x == 2 else 0)
-        self.fit_group_12(group_12, y_train_12)
+        y_12 = y[y == 0].apply(lambda x: 1 if x == 1 else 2)
 
-    def fit_group_03(self, X: pd.DataFrame, y: pd.Series) -> None:
-        """
-        0과 3 그룹 분류를 위한 모델을 학습합니다.
-
-        매개변수
-        ----------
-        X : pd.DataFrame
-            0과 3 그룹에 대한 입력 데이터입니다.
-        y : pd.Series
-            0과 3 그룹에 대한 타겟 값입니다.
-        """
-        self.best_stage2_model_03 = LGBMClassifier(random_state=42, boost_from_average=False)
-        self.best_stage2_model_03.fit(X, y)
-
-    def fit_group_12(self, X: pd.DataFrame, y: pd.Series) -> None:
-        """
-        1과 2 그룹 분류를 위한 모델을 학습합니다.
-
-        매개변수
-        ----------
-        X : pd.DataFrame
-            1과 2 그룹에 대한 입력 데이터입니다.
-        y : pd.Series
-            1과 2 그룹에 대한 타겟 값입니다.
-        """
         lgbm_model_12 = LGBMClassifier(
             n_estimators=100,
             max_depth=7,
@@ -137,49 +120,40 @@ class VotingModel(Model):
             random_state=42
         )
 
-        self.voting_model_12 = VotingClassifier(
+        self.voting_model_stage2_12 = VotingClassifier(
             estimators=[('lgbm', lgbm_model_12), ('xgb', xgb_model_12)],
             voting='soft'
         )
-
-        self.voting_model_12.fit(X, y)
+        self.voting_model_stage2_12.fit(group_12, y_12)
 
     def predict(self, X: pd.DataFrame) -> pd.Series:
-        """
-        학습된 모델을 사용하여 입력 데이터에 대한 예측을 수행합니다.
+        """테스트 데이터에 대한 예측을 수행"""
+        if self.selected_features == 'all':
+            selected_X = X
+        else:
+            selected_X = X[self.selected_features]
 
-        매개변수
-        ----------
-        X : pd.DataFrame
-            예측을 수행할 입력 데이터입니다.
-
-        반환값
-        -------
-        pd.Series
-            입력 데이터에 대한 예측 값으로, 그룹 0, 1, 2, 3에 대한 결과를 반환합니다.
-        """
-        # 1단계 예측: 0,3 vs 1,2
-        test_pred_stage1 = self.voting_model.predict(X)
+        # 1단계 예측 (0,3 vs 1,2)
+        test_pred_stage1 = self.voting_model_stage1.predict(selected_X)
 
         # 0과 3 예측
-        test_df_03 = X[test_pred_stage1 == 1]
+        test_df_03 = selected_X[test_pred_stage1 == 1]
         if not test_df_03.empty:
-            test_pred_03 = self.best_stage2_model_03.predict(test_df_03)
+            test_pred_03 = self.lgbm_model_stage2_03.predict(test_df_03)
         else:
             test_pred_03 = np.array([])
 
         # 1과 2 예측
-        test_df_12 = X[test_pred_stage1 == 0]
+        test_df_12 = selected_X[test_pred_stage1 == 0]
         if not test_df_12.empty:
-            test_pred_12 = self.voting_model_12.predict(test_df_12)
-            test_pred_12 = np.where(test_pred_12 == 0, 1, 2)
+            test_pred_12 = self.voting_model_stage2_12.predict(test_df_12)
+            test_pred_12 = np.where(test_pred_12 == 0, 1, 2)  # 0을 1로, 1을 2로 변경
         else:
             test_pred_12 = np.array([])
 
         # 최종 결과 결합
-        final_test_pred = np.zeros(len(X))
-        final_test_pred[test_pred_stage1 == 1] = test_pred_03
-        final_test_pred[test_pred_stage1 == 0] = test_pred_12
+        final_test_pred = np.zeros(len(selected_X))  # 기본적으로 모두 0으로 설정
+        final_test_pred[test_pred_stage1 == 1] = test_pred_03  # 0, 3의 예측 결과
+        final_test_pred[test_pred_stage1 == 0] = test_pred_12  # 1, 2의 예측 결과
 
-        return pd.Series(final_test_pred.astype(int))
-
+        return pd.Series(final_test_pred).astype(int)
