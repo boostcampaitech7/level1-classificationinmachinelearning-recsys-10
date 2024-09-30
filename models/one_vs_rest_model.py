@@ -4,8 +4,8 @@ import pandas as pd
 import lightgbm as lgb
 
 
-class BinaryEnsembleModel(Model):
-    """다중 클래스를 이진 분류 모델로 예측하는 앙상블 모델입니다."""
+class OneVsRestModel(Model):
+    """다중 클래스를 여러개의 이진 분류 모델로 예측하는 One-vs-Rest 모델입니다."""
 
     def __init__(self, model_params: dict = None, selected_features: list = None):
         """분류 모델의 각종 설정을 초기화합니다.
