@@ -12,9 +12,10 @@
 
 # Team
 
-|<img src="https://avatars.githubusercontent.com/u/20788198?v=4" width="150" height="150"/>|<img src="https://avatars.githubusercontent.com/u/81938013?v=4" width="150" height="150"/>|<img src="https://avatars.githubusercontent.com/u/112858891?v=4" width="150" height="150"/>|<img src="https://avatars.githubusercontent.com/u/103016689?v=4" width="150" height="150"/>|<img src="https://avatars.githubusercontent.com/u/176903280?v=4" width="150" height="150"/>|
-|:-:|:-:|:-:|:-:|:-:|
-|곽정무<br/>[@jkwag](https://github.com/jkwag)|박준하<br/>[@joshua5301](https://github.com/joshua5301)|박태지<br/>[@spsp4755](https://github.com/spsp4755)|신경호<br/>[@Human3321](https://github.com/Human3321)|이효준<br/>[@Jun9096](https://github.com/Jun9096)|
+||<img src="https://avatars.githubusercontent.com/u/20788198?v=4" width="100" height="100"/>|<img src="https://avatars.githubusercontent.com/u/81938013?v=4" width="100" height="100"/>|<img src="https://avatars.githubusercontent.com/u/112858891?v=4" width="100" height="100"/>|<img src="https://avatars.githubusercontent.com/u/103016689?v=4" width="100" height="100"/>|<img src="https://avatars.githubusercontent.com/u/176903280?v=4" width="100" height="100"/>|
+|:-:|:-:|:-:|:-:|:-:|:-:|
+|공통|곽정무<br/>[@jkwag](https://github.com/jkwag)|박준하<br/>[@joshua5301](https://github.com/joshua5301)|박태지<br/>[@spsp4755](https://github.com/spsp4755)|신경호<br/>[@Human3321](https://github.com/Human3321)|이효준<br/>[@Jun9096](https://github.com/Jun9096)|
+|Feature 분석 및 <br/> 모델 개발|거래소 EDA 및 <br/> feature engineering|Model 학습 검증 및 <br/> framework 개발|Market data EDA|Hyperparameter <br/>tuning 및<br/> visualization|Network data EDA| 
 
 <br/>
 
